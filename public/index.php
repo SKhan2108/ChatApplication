@@ -139,7 +139,7 @@ $app->get('/groups/{id}/messages', function ($request, $response, $args) {
 
     $stmt->execute(['group_id' => $groupId]);
 
-    $messages = $stmt->fetchAll();
+    $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $response->getBody()->write(json_encode($messages));
     return $response->withHeader('Content-Type', 'application/json');

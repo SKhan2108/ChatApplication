@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatApplication</title>
+<style>
+  :root { color-scheme: light; --ink:#172033; --muted:#667085; --line:#e4e7ec; --brand:#315efb; --panel:#fff; --bg:#f4f6fb; --green:#137a50; --red:#b42318; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:18px 24px; background:#172033; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  header h1 { margin:0; font-size:20px; } header span { font-size:12px; color:#c7d2fe; }
+  .layout { max-width:1200px; margin:24px auto; padding:0 16px; display:grid; grid-template-columns:320px minmax(0,1fr); gap:18px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:0 5px 20px #1720330a; overflow:hidden; }
+  .panel-head { padding:16px 18px; border-bottom:1px solid var(--line); }
+  h2 { font-size:16px; margin:0 0 5px; } .sub { color:var(--muted); font-size:12px; }
+  .pad { padding:16px 18px; } label { display:block; font-size:12px; font-weight:650; margin:12px 0 5px; color:#344054; }
+  input,select,button { font:inherit; } input,select { width:100%; border:1px solid #d0d5dd; border-radius:9px; padding:10px 11px; background:white; color:var(--ink); }
+  button { border:0; border-radius:9px; padding:10px 12px; cursor:pointer; font-weight:650; }
+  button.primary { background:var(--brand); color:white; } button.secondary { background:#eef2ff; color:#293ea8; } button.ghost { background:#f2f4f7; color:#344054; }
+  button:disabled { opacity:.5; cursor:not-allowed; } .row { display:flex; gap:8px; } .row > * { flex:1; min-width:0; }
+  .divider { height:1px; background:var(--line); margin:18px 0; }
+  .chat { display:flex; flex-direction:column; min-height:650px; }
+  .chatbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 18px; border-bottom:1px solid var(--line); }
+  .chatbar h2 { margin:0; } .messages { flex:1; padding:20px; overflow:auto; min-height:340px; max-height:58vh; background:linear-gradient(#fbfcff,#f8faff); }
+  .empty { text-align:center; color:var(--muted); padding:50px 10px; }
+  .message { max-width:78%; margin:0 0 14px; padding:11px 13px; border-radius:13px; background:white; border:1px solid var(--line); box-shadow:0 2px 6px #10182808; overflow-wrap:anywhere; }
+  .message.mine { margin-left:auto; background:#eaf0ff; border-color:#d7e1ff; }
+  .meta { display:flex; gap:8px; justify-content:space-between; color:var(--muted); font-size:11px; margin-bottom:5px; }
+  .composer { display:flex; gap:8px; padding:14px; border-top:1px solid var(--line); } .composer input { flex:1; }
+  #status { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); max-width:min(90vw,700px); padding:10px 14px; border-radius:10px; background:#172033; color:white; box-shadow:0 8px 24px #17203333; display:none; z-index:10; }
+  #status.error { background:var(--red); } #status.success { background:var(--green); }
+  .small-actions { display:flex; gap:8px; margin-top:10px; } .small-actions button { flex:1; }
+  @media(max-width:760px) { .layout { grid-template-columns:1fr; } .chat { min-height:550px; } .messages { max-height:none; } header { padding:16px; } }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>ChatApplication</h1><span>Local PHP Slim API · browser UI</span></div>
+  <button class="ghost" id="refreshBtn">Refresh data</button>
+</header>
+<main class="layout">
+  <aside class="panel">
+    <div class="panel-head"><h2>Chat setup</h2><div class="sub">Choose who you are and which group to open.</div></div>
+    <div class="pad">
+      <label for="userSelect">Current user</label>
+      <select id="userSelect"><option value="">Loading users…</option></select>
+      <div class="small-actions"><button class="secondary" id="reloadUsersBtn">Reload users</button></div>
+      <div class="divider"></div>
+      <h2>Create a user</h2>
+      <form id="userForm">
+        <label for="username">Username</label><input id="username" required maxlength="80" placeholder="e.g. Shama">
+        <label for="email">Email</label><input id="email" type="email" required placeholder="name@example.com">
+        <div style="margin-top:10px"><button class="primary" type="submit">Create user</button></div>
+      </form>
+      <div class="divider"></div>
+      <h2>Groups</h2>
+      <label for="groupSelect">Open group</label>
+      <select id="groupSelect"><option value="">Loading groups…</option></select>
+      <div class="small-actions"><button class="secondary" id="joinBtn">Join selected group</button><button class="ghost" id="reloadGroupsBtn">Reload</button></div>
+      <form id="groupForm" style="margin-top:16px">
+        <label for="groupName">Create a group</label><input id="groupName" required maxlength="100" placeholder="e.g. Team chat">
+        <div style="margin-top:10px"><button class="primary" type="submit">Create group</button></div>
+      </form>
+    </div>
+  </aside>
+  <section class="panel chat">
+    <div class="chatbar">
+      <div><h2 id="chatTitle">Select a group</h2><div class="sub" id="chatSubtitle">Messages will appear here.</div></div>
+      <button class="secondary" id="reloadMessagesBtn">Reload messages</button>
+    </div>
+    <div class="messages" id="messages"><div class="empty">Choose a user and group to start testing your chat API.</div></div>
+    <form class="composer" id="messageForm">
+      <input id="messageInput" placeholder="Write a message…" autocomplete="off" disabled>
+      <button class="primary" id="sendBtn" type="submit" disabled>Send</button>
+    </form>
+  </section>
+</main>
+<div id="status" role="status" aria-live="polite"></div>
+<script>
+const API = ''; // Same origin: this page is served from http://localhost:8000
+const $ = id => document.getElementById(id);
+let users = [], groups = [], lastMessageKey = '';
+function notify(text, kind='') {
+  const el = $('status'); el.textContent = text; el.className = kind; el.style.display = 'block';
+  clearTimeout(notify.timer); notify.timer = setTimeout(() => el.style.display='none', 4200);
+}
+async function api(path, options={}) {
+  const response = await fetch(API + path, {
+    ...options,
+    headers: { ...(options.body ? {'Content-Type':'application/json'} : {}), ...(options.headers || {}) }
+  });
+  const text = await response.text();
+  let data; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!response.ok) throw new Error((data && (data.error || data.message)) || `HTTP ${response.status}: ${text || response.statusText}`);
+  return data;
+}
+function listFrom(data) { return Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []); }
+function optionLabel(item, kind) {
+  if (kind === 'user') return `${item.username ?? item.name ?? 'User'} (ID ${item.id})`;
+  return `${item.name ?? item.group_name ?? 'Group'} (ID ${item.id})`;
+}
+function fillSelect(select, items, kind, previous='') {
+  select.replaceChildren();
+  if (!items.length) { select.add(new Option(`No ${kind}s found`, '')); return; }
+  select.add(new Option(`Select ${kind}`, ''));
+  items.forEach(item => select.add(new Option(optionLabel(item, kind), String(item.id))));
+  if (items.some(x => String(x.id) === String(previous))) select.value = String(previous);
+  else if (items.length === 1) select.value = String(items[0].id);
+}
+async function loadUsers() {
+  const prev = $('userSelect').value;
+  users = listFrom(await api('/users'));
+  fillSelect($('userSelect'), users, 'user', prev);
+}
+async function loadGroups() {
+  const prev = $('groupSelect').value;
+  groups = listFrom(await api('/groups'));
+  fillSelect($('groupSelect'), groups, 'group', prev);
+  updateChatHeader();
+}
+function currentUser() { return users.find(x => String(x.id) === $('userSelect').value); }
+function currentGroup() { return groups.find(x => String(x.id) === $('groupSelect').value); }
+function updateChatHeader() {
+  const group = currentGroup();
+  $('chatTitle').textContent = group ? (group.name ?? group.group_name ?? `Group ${group.id}`) : 'Select a group';
+  $('chatSubtitle').textContent = group ? `Group ID ${group.id} · Signed in as ${currentUser()?.username ?? 'select a user'}` : 'Messages will appear here.';
+  const ready = !!group && !!currentUser();
+  $('messageInput').disabled = !ready; $('sendBtn').disabled = !ready;
+}
+function formatDate(value) {
+  if (!value) return '';
+  const d = new Date(String(value).replace(' ', 'T') + (String(value).includes('Z') ? '' : ''));
+  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+}
+async function loadMessages() {
+  const group = currentGroup();
+  if (!group) {
+    $('messages').innerHTML = '<div class="empty">Select a group to view messages.</div>';
+    updateChatHeader(); return;
+  }
+  const data = await api(`/groups/${encodeURIComponent(group.id)}/messages`);
+  const messages = listFrom(data);
+  const box = $('messages');
+  if (!messages.length) {
+    box.innerHTML = '<div class="empty">No messages yet. Send the first one!</div>';
+    lastMessageKey = ''; updateChatHeader(); return;
+  }
+  const key = messages.map(m => `${m.id}:${m.content}`).join('|');
+  if (key !== lastMessageKey) {
+    box.replaceChildren();
+    messages.forEach(m => {
+      const wrap = document.createElement('article');
+      wrap.className = 'message' + (String(m.user_id) === String(currentUser()?.id) ? ' mine' : '');
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const name = document.createElement('span'); name.textContent = m.username ?? `User ${m.user_id}`;
+      const time = document.createElement('span'); time.textContent = formatDate(m.created_at);
+      meta.append(name, time);
+      const content = document.createElement('div'); content.textContent = m.content ?? '';
+      wrap.append(meta, content); box.append(wrap);
+    });
+    box.scrollTop = box.scrollHeight; lastMessageKey = key;
+  }
+  updateChatHeader();
+}
+async function refreshAll() {
+  try { await loadUsers(); await loadGroups(); await loadMessages(); notify('Data refreshed', 'success'); }
+  catch (e) { notify(`Could not load data: ${e.message}`, 'error'); }
+}
+$('refreshBtn').addEventListener('click', refreshAll);
+$('reloadUsersBtn').addEventListener('click', async () => { try { await loadUsers(); updateChatHeader(); notify('Users loaded','success'); } catch(e) { notify(e.message,'error'); }});
+$('reloadGroupsBtn').addEventListener('click', async () => { try { await loadGroups(); await loadMessages(); notify('Groups loaded','success'); } catch(e) { notify(e.message,'error'); }});
+$('reloadMessagesBtn').addEventListener('click', async () => { try { lastMessageKey=''; await loadMessages(); } catch(e) { notify(e.message,'error'); }});
+$('userSelect').addEventListener('change', () => { updateChatHeader(); lastMessageKey=''; loadMessages().catch(e=>notify(e.message,'error')); });
+$('groupSelect').addEventListener('change', () => { lastMessageKey=''; updateChatHeader(); loadMessages().catch(e=>notify(e.message,'error')); });
+$('userForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  try {
+    await api('/users', {method:'POST', body:JSON.stringify({username:$('username').value.trim(), email:$('email').value.trim()})});
+    $('userForm').reset(); await loadUsers(); notify('User created','success');
+  } catch(err) { notify(`Could not create user: ${err.message}`,'error'); }
+});
+$('groupForm').addEventListener('submit', async e => {
+  e.preventDefault(); const user = currentUser();
+  if (!user) { notify('Select a user first','error'); return; }
+  try {
+    await api('/groups', {method:'POST', body:JSON.stringify({name:$('groupName').value.trim(), created_by:Number(user.id)})});
+    $('groupForm').reset(); await loadGroups(); notify('Group created','success');
+  } catch(err) { notify(`Could not create group: ${err.message}`,'error'); }
+});
+$('joinBtn').addEventListener('click', async () => {
+  const user = currentUser(), group = currentGroup();
+  if (!user || !group) { notify('Select both a user and a group','error'); return; }
+  try {
+    await api(`/groups/${encodeURIComponent(group.id)}/join`, {method:'POST', body:JSON.stringify({user_id:Number(user.id)})});
+    notify('Joined group','success');
+  } catch(err) { notify(`Could not join group: ${err.message}`,'error'); }
+});
+$('messageForm').addEventListener('submit', async e => {
+  e.preventDefault(); const user = currentUser(), group = currentGroup(), content = $('messageInput').value.trim();
+  if (!user || !group || !content) return;
+  $('sendBtn').disabled = true;
+  try {
+    await api(`/groups/${encodeURIComponent(group.id)}/messages`, {method:'POST', body:JSON.stringify({user_id:Number(user.id), content})});
+    $('messageInput').value = ''; lastMessageKey=''; await loadMessages();
+  } catch(err) { notify(`Could not send message: ${err.message}`,'error'); }
+  finally { updateChatHeader(); }
+});
+refreshAll();
+</script>
+</body>
+</html>
